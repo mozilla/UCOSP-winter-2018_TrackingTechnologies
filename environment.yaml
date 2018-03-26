@@ -1,0 +1,19 @@
+name: sb2018
+channels:
+- conda-forge
+dependencies:
+- python>=3.6
+- jupyter
+- boto3
+- requests
+- pandas
+- path.py
+- dask
+- fastparquet
+- python-snappy
+- bokeh
+- numba >=0.37
+- pip:
+  - tldextract
+  - urlextract
+  - tqdm

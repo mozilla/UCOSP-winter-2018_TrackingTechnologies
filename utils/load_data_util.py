@@ -1,11 +1,13 @@
 import boto3
-import botocore
 import json
-import pandas as pd
-import requests
-import random
+import logging
 import os
-from pathlib import Path
+import pandas as pd
+import random
+import requests
+
+from utils.validation.validate_data_util import SchemaDataValidator
+
 
 BUCKET_NAME = "safe-ucosp-2017"
 
@@ -20,24 +22,35 @@ cache_file_directory = os.path.join(project_root_directory, "cache")
 if not os.path.exists(cache_file_directory):
     os.makedirs(cache_file_directory)
 
-def load_data(number_of_files, to_output_csv = True, cache_s3_data = False):
+def load_data(number_of_files, to_output_csv = True, cache_s3_data = False, accepts_invalid_json_objects = False):
     """Load the files from the beginning of the bucket
     Keyword arguments:
     number_of_files -- number of files to load
     to_output_csv -- boolean to save the result of the data into a csv file called result.csv (default True)
     cache_s3_data -- boolean to cache each file once downloaded in a json file to speed up future data loads. (default False)
+    accepts_invalid_json_objects -- boolean which controls if invalid json objects are added to the returned pandas object (default False)
     """
     file_number = 0
     frames = []
+    schema_data_validator = SchemaDataValidator()
+    logger = logging.getLogger("validator")
     
     #Take the first number_of_files and transform them into dataframes
     for bucket_data_object in bucket.objects.limit(number_of_files):
         file_number += 1
         data_frame = load_data_to_dataframe(bucket_data_object, file_number, cache_s3_data)
-        frames.append(data_frame)
+
+        # skip validation if we want to accept invalid json data to improve performance.
+        if accepts_invalid_json_objects:
+            frames.append(data_frame)
+        else: # validate the json data and then add it to the frames if it is valid.
+            if schema_data_validator.is_valid_schema_data(data_frame):
+                frames.append(data_frame)
+            else:
+                logger.warning("rejected '%s' because: %s", bucket_data_object.key, schema_data_validator.get_error_message())
     
     #Concat DataFrames generated from each file into a large DataFrame
-    result = pd.concat(frames)
+    result = pd.concat(frames, ignore_index=True)
     
     #Output the results to a csv if desired
     if (to_output_csv):
@@ -106,17 +119,20 @@ def load_index_file():
     return lines
 
 
-def load_random_data(number_of_files, to_output_csv = True, seed = None, cache_s3_data = False):
+def load_random_data(number_of_files, to_output_csv = True, seed = None, cache_s3_data = False, accepts_invalid_json_objects = False):
     """Load random files from the bucket
     Keyword arguments:
     number_of_files -- number of files to load
     to_output_csv -- boolean to save the result of the data into a csv file called result.csv (default True)
     seed -- seed for generating random samples (default None)
-    cache_s3_data -- boolean to cache each file once downloaded in a json file to speed up future data loads. (default False) 
+    cache_s3_data -- boolean to cache each file once downloaded in a json file to speed up future data loads. (default False)
+    accepts_invalid_json_objects -- boolean which controls if invalid json objects are added to the returned pandas object (default False)
     """
 
     frames = []
     file_number = 0
+    schema_data_validator = SchemaDataValidator()
+    logger = logging.getLogger("validator")
     
     lines = load_index_file()
     
@@ -131,10 +147,18 @@ def load_random_data(number_of_files, to_output_csv = True, seed = None, cache_s
 
         bucket_data_object = s3.ObjectSummary(BUCKET_NAME, sample)
         data_frame = load_data_to_dataframe(bucket_data_object, file_number, cache_s3_data)
-        frames.append(data_frame)
-        
+
+        # skip validation if we want to accept invalid json data to improve performance.
+        if accepts_invalid_json_objects:
+            frames.append(data_frame)
+        else: # validate the json data and then add it to the frames if it is valid.
+            if schema_data_validator.is_valid_schema_data(data_frame):
+                frames.append(data_frame)
+            else:
+                logger.warning("rejected '%s' because: %s", bucket_data_object.key, schema_data_validator.get_error_message())
+
     #Concat DataFrames generated from each file into a large DataFrame
-    result = pd.concat(frames)
+    result = pd.concat(frames, ignore_index=True)
     
     #Output the results to a csv if desired
     if (to_output_csv):
