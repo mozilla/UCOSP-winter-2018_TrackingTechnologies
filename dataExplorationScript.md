@@ -1,0 +1,940 @@
+
+
+```python
+import boto3
+import botocore
+import json
+import pandas as pd
+import utils.load_data_util
+
+# Pandas Display Settings to allow the dataframe to display in one view
+pd.set_option('display.max_columns', 500)
+pd.set_option('display.expand_frame_repr', False)
+pd.set_option('display.max_rows', 50000)
+s3 = boto3.resource('s3')
+```
+
+
+```python
+# Helper function to trim the json files into a proper json format
+def process_string(data):
+    return "[" + data[1:-1] + "]"
+
+#Helper function to count the occurance of a given key
+def count_key(data, key, key_value_count):
+    for site in data :
+        key_value = site[key]
+        key_value_count[key_value] = key_value_count.get(key_value, 0) + 1
+
+```
+
+
+```python
+result = utils.load_data_util.load_random_data(50)
+```
+
+
+```python
+unique_args = result.arguments.unique()
+```
+
+
+```python
+count = 0
+with open("uniqueArgs.txt", "wb") as f:
+    for arg in unique_args:
+        count += 1
+        f.write((str(arg)+"\n").encode("utf-8"))
+```
+
+
+```python
+grouped_by_symbol = result.groupby(['symbol']).count()
+```
+
+
+```python
+grouped_by_symbol
+```
+
+
+
+
+<div>
+<style scoped>
+    .dataframe tbody tr th:only-of-type {
+        vertical-align: middle;
+    }
+
+    .dataframe tbody tr th {
+        vertical-align: top;
+    }
+
+    .dataframe thead th {
+        text-align: right;
+    }
+</style>
+<table border="1" class="dataframe">
+  <thead>
+    <tr style="text-align: right;">
+      <th></th>
+      <th>arguments</th>
+      <th>call_stack</th>
+      <th>crawl_id</th>
+      <th>file_number</th>
+      <th>func_name</th>
+      <th>in_iframe</th>
+      <th>location</th>
+      <th>operation</th>
+      <th>script_col</th>
+      <th>script_line</th>
+      <th>script_loc_eval</th>
+      <th>script_url</th>
+      <th>time_stamp</th>
+      <th>value</th>
+    </tr>
+    <tr>
+      <th>symbol</th>
+      <th></th>
+      <th></th>
+      <th></th>
+      <th></th>
+      <th></th>
+      <th></th>
+      <th></th>
+      <th></th>
+      <th></th>
+      <th></th>
+      <th></th>
+      <th></th>
+      <th></th>
+      <th></th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <th>CanvasRenderingContext2D.fillRect</th>
+      <td>1</td>
+      <td>1</td>
+      <td>1</td>
+      <td>1</td>
+      <td>1</td>
+      <td>1</td>
+      <td>1</td>
+      <td>1</td>
+      <td>1</td>
+      <td>1</td>
+      <td>1</td>
+      <td>1</td>
+      <td>1</td>
+      <td>1</td>
+    </tr>
+    <tr>
+      <th>CanvasRenderingContext2D.fillStyle</th>
+      <td>0</td>
+      <td>2</td>
+      <td>2</td>
+      <td>2</td>
+      <td>2</td>
+      <td>2</td>
+      <td>2</td>
+      <td>2</td>
+      <td>2</td>
+      <td>2</td>
+      <td>2</td>
+      <td>2</td>
+      <td>2</td>
+      <td>2</td>
+    </tr>
+    <tr>
+      <th>CanvasRenderingContext2D.textBaseline</th>
+      <td>0</td>
+      <td>1</td>
+      <td>1</td>
+      <td>1</td>
+      <td>1</td>
+      <td>1</td>
+      <td>1</td>
+      <td>1</td>
+      <td>1</td>
+      <td>1</td>
+      <td>1</td>
+      <td>1</td>
+      <td>1</td>
+      <td>1</td>
+    </tr>
+    <tr>
+      <th>HTMLCanvasElement.getContext</th>
+      <td>3</td>
+      <td>3</td>
+      <td>3</td>
+      <td>3</td>
+      <td>3</td>
+      <td>3</td>
+      <td>3</td>
+      <td>3</td>
+      <td>3</td>
+      <td>3</td>
+      <td>3</td>
+      <td>3</td>
+      <td>3</td>
+      <td>3</td>
+    </tr>
+    <tr>
+      <th>HTMLCanvasElement.height</th>
+      <td>0</td>
+      <td>1</td>
+      <td>1</td>
+      <td>1</td>
+      <td>1</td>
+      <td>1</td>
+      <td>1</td>
+      <td>1</td>
+      <td>1</td>
+      <td>1</td>
+      <td>1</td>
+      <td>1</td>
+      <td>1</td>
+      <td>1</td>
+    </tr>
+    <tr>
+      <th>HTMLCanvasElement.style</th>
+      <td>0</td>
+      <td>1</td>
+      <td>1</td>
+      <td>1</td>
+      <td>1</td>
+      <td>1</td>
+      <td>1</td>
+      <td>1</td>
+      <td>1</td>
+      <td>1</td>
+      <td>1</td>
+      <td>1</td>
+      <td>1</td>
+      <td>1</td>
+    </tr>
+    <tr>
+      <th>HTMLCanvasElement.width</th>
+      <td>0</td>
+      <td>1</td>
+      <td>1</td>
+      <td>1</td>
+      <td>1</td>
+      <td>1</td>
+      <td>1</td>
+      <td>1</td>
+      <td>1</td>
+      <td>1</td>
+      <td>1</td>
+      <td>1</td>
+      <td>1</td>
+      <td>1</td>
+    </tr>
+    <tr>
+      <th>RTCPeerConnection.iceGatheringState</th>
+      <td>0</td>
+      <td>2</td>
+      <td>2</td>
+      <td>2</td>
+      <td>2</td>
+      <td>2</td>
+      <td>2</td>
+      <td>2</td>
+      <td>2</td>
+      <td>2</td>
+      <td>2</td>
+      <td>2</td>
+      <td>2</td>
+      <td>2</td>
+    </tr>
+    <tr>
+      <th>RTCPeerConnection.idpLoginUrl</th>
+      <td>0</td>
+      <td>1</td>
+      <td>1</td>
+      <td>1</td>
+      <td>1</td>
+      <td>1</td>
+      <td>1</td>
+      <td>1</td>
+      <td>1</td>
+      <td>1</td>
+      <td>1</td>
+      <td>1</td>
+      <td>1</td>
+      <td>1</td>
+    </tr>
+    <tr>
+      <th>RTCPeerConnection.localDescription</th>
+      <td>0</td>
+      <td>2</td>
+      <td>2</td>
+      <td>2</td>
+      <td>2</td>
+      <td>2</td>
+      <td>2</td>
+      <td>2</td>
+      <td>2</td>
+      <td>2</td>
+      <td>2</td>
+      <td>2</td>
+      <td>2</td>
+      <td>2</td>
+    </tr>
+    <tr>
+      <th>RTCPeerConnection.onicecandidate</th>
+      <td>0</td>
+      <td>2</td>
+      <td>2</td>
+      <td>2</td>
+      <td>2</td>
+      <td>2</td>
+      <td>2</td>
+      <td>2</td>
+      <td>2</td>
+      <td>2</td>
+      <td>2</td>
+      <td>2</td>
+      <td>2</td>
+      <td>2</td>
+    </tr>
+    <tr>
+      <th>RTCPeerConnection.onremovestream</th>
+      <td>0</td>
+      <td>1</td>
+      <td>1</td>
+      <td>1</td>
+      <td>1</td>
+      <td>1</td>
+      <td>1</td>
+      <td>1</td>
+      <td>1</td>
+      <td>1</td>
+      <td>1</td>
+      <td>1</td>
+      <td>1</td>
+      <td>1</td>
+    </tr>
+    <tr>
+      <th>RTCPeerConnection.peerIdentity</th>
+      <td>0</td>
+      <td>1</td>
+      <td>1</td>
+      <td>1</td>
+      <td>1</td>
+      <td>1</td>
+      <td>1</td>
+      <td>1</td>
+      <td>1</td>
+      <td>1</td>
+      <td>1</td>
+      <td>1</td>
+      <td>1</td>
+      <td>1</td>
+    </tr>
+    <tr>
+      <th>RTCPeerConnection.remoteDescription</th>
+      <td>0</td>
+      <td>2</td>
+      <td>2</td>
+      <td>2</td>
+      <td>2</td>
+      <td>2</td>
+      <td>2</td>
+      <td>2</td>
+      <td>2</td>
+      <td>2</td>
+      <td>2</td>
+      <td>2</td>
+      <td>2</td>
+      <td>2</td>
+    </tr>
+    <tr>
+      <th>RTCPeerConnection.signalingState</th>
+      <td>0</td>
+      <td>2</td>
+      <td>2</td>
+      <td>2</td>
+      <td>2</td>
+      <td>2</td>
+      <td>2</td>
+      <td>2</td>
+      <td>2</td>
+      <td>2</td>
+      <td>2</td>
+      <td>2</td>
+      <td>2</td>
+      <td>2</td>
+    </tr>
+    <tr>
+      <th>window.Storage.getItem</th>
+      <td>182</td>
+      <td>182</td>
+      <td>182</td>
+      <td>182</td>
+      <td>182</td>
+      <td>182</td>
+      <td>182</td>
+      <td>182</td>
+      <td>182</td>
+      <td>182</td>
+      <td>182</td>
+      <td>182</td>
+      <td>182</td>
+      <td>182</td>
+    </tr>
+    <tr>
+      <th>window.Storage.key</th>
+      <td>3</td>
+      <td>3</td>
+      <td>3</td>
+      <td>3</td>
+      <td>3</td>
+      <td>3</td>
+      <td>3</td>
+      <td>3</td>
+      <td>3</td>
+      <td>3</td>
+      <td>3</td>
+      <td>3</td>
+      <td>3</td>
+      <td>3</td>
+    </tr>
+    <tr>
+      <th>window.Storage.length</th>
+      <td>0</td>
+      <td>5</td>
+      <td>5</td>
+      <td>5</td>
+      <td>5</td>
+      <td>5</td>
+      <td>5</td>
+      <td>5</td>
+      <td>5</td>
+      <td>5</td>
+      <td>5</td>
+      <td>5</td>
+      <td>5</td>
+      <td>5</td>
+    </tr>
+    <tr>
+      <th>window.Storage.removeItem</th>
+      <td>35</td>
+      <td>35</td>
+      <td>35</td>
+      <td>35</td>
+      <td>35</td>
+      <td>35</td>
+      <td>35</td>
+      <td>35</td>
+      <td>35</td>
+      <td>35</td>
+      <td>35</td>
+      <td>35</td>
+      <td>35</td>
+      <td>35</td>
+    </tr>
+    <tr>
+      <th>window.Storage.setItem</th>
+      <td>49</td>
+      <td>49</td>
+      <td>49</td>
+      <td>49</td>
+      <td>49</td>
+      <td>49</td>
+      <td>49</td>
+      <td>49</td>
+      <td>49</td>
+      <td>49</td>
+      <td>49</td>
+      <td>49</td>
+      <td>49</td>
+      <td>49</td>
+    </tr>
+    <tr>
+      <th>window.document.cookie</th>
+      <td>0</td>
+      <td>479</td>
+      <td>479</td>
+      <td>479</td>
+      <td>479</td>
+      <td>479</td>
+      <td>479</td>
+      <td>479</td>
+      <td>479</td>
+      <td>479</td>
+      <td>479</td>
+      <td>479</td>
+      <td>479</td>
+      <td>479</td>
+    </tr>
+    <tr>
+      <th>window.localStorage</th>
+      <td>0</td>
+      <td>94</td>
+      <td>94</td>
+      <td>94</td>
+      <td>94</td>
+      <td>94</td>
+      <td>94</td>
+      <td>94</td>
+      <td>94</td>
+      <td>94</td>
+      <td>94</td>
+      <td>94</td>
+      <td>94</td>
+      <td>94</td>
+    </tr>
+    <tr>
+      <th>window.name</th>
+      <td>0</td>
+      <td>31</td>
+      <td>31</td>
+      <td>31</td>
+      <td>31</td>
+      <td>31</td>
+      <td>31</td>
+      <td>31</td>
+      <td>31</td>
+      <td>31</td>
+      <td>31</td>
+      <td>31</td>
+      <td>31</td>
+      <td>31</td>
+    </tr>
+    <tr>
+      <th>window.navigator.appCodeName</th>
+      <td>0</td>
+      <td>2</td>
+      <td>2</td>
+      <td>2</td>
+      <td>2</td>
+      <td>2</td>
+      <td>2</td>
+      <td>2</td>
+      <td>2</td>
+      <td>2</td>
+      <td>2</td>
+      <td>2</td>
+      <td>2</td>
+      <td>2</td>
+    </tr>
+    <tr>
+      <th>window.navigator.appName</th>
+      <td>0</td>
+      <td>20</td>
+      <td>20</td>
+      <td>20</td>
+      <td>20</td>
+      <td>20</td>
+      <td>20</td>
+      <td>20</td>
+      <td>20</td>
+      <td>20</td>
+      <td>20</td>
+      <td>20</td>
+      <td>20</td>
+      <td>20</td>
+    </tr>
+    <tr>
+      <th>window.navigator.appVersion</th>
+      <td>0</td>
+      <td>1</td>
+      <td>1</td>
+      <td>1</td>
+      <td>1</td>
+      <td>1</td>
+      <td>1</td>
+      <td>1</td>
+      <td>1</td>
+      <td>1</td>
+      <td>1</td>
+      <td>1</td>
+      <td>1</td>
+      <td>1</td>
+    </tr>
+    <tr>
+      <th>window.navigator.cookieEnabled</th>
+      <td>0</td>
+      <td>14</td>
+      <td>14</td>
+      <td>14</td>
+      <td>14</td>
+      <td>14</td>
+      <td>14</td>
+      <td>14</td>
+      <td>14</td>
+      <td>14</td>
+      <td>14</td>
+      <td>14</td>
+      <td>14</td>
+      <td>14</td>
+    </tr>
+    <tr>
+      <th>window.navigator.language</th>
+      <td>0</td>
+      <td>21</td>
+      <td>21</td>
+      <td>21</td>
+      <td>21</td>
+      <td>21</td>
+      <td>21</td>
+      <td>21</td>
+      <td>21</td>
+      <td>21</td>
+      <td>21</td>
+      <td>21</td>
+      <td>21</td>
+      <td>21</td>
+    </tr>
+    <tr>
+      <th>window.navigator.mimeTypes[application/futuresplash].type</th>
+      <td>0</td>
+      <td>4</td>
+      <td>4</td>
+      <td>4</td>
+      <td>4</td>
+      <td>4</td>
+      <td>4</td>
+      <td>4</td>
+      <td>4</td>
+      <td>4</td>
+      <td>4</td>
+      <td>4</td>
+      <td>4</td>
+      <td>4</td>
+    </tr>
+    <tr>
+      <th>window.navigator.mimeTypes[application/x-shockwave-flash].type</th>
+      <td>0</td>
+      <td>3</td>
+      <td>3</td>
+      <td>3</td>
+      <td>3</td>
+      <td>3</td>
+      <td>3</td>
+      <td>3</td>
+      <td>3</td>
+      <td>3</td>
+      <td>3</td>
+      <td>3</td>
+      <td>3</td>
+      <td>3</td>
+    </tr>
+    <tr>
+      <th>window.navigator.onLine</th>
+      <td>0</td>
+      <td>1</td>
+      <td>1</td>
+      <td>1</td>
+      <td>1</td>
+      <td>1</td>
+      <td>1</td>
+      <td>1</td>
+      <td>1</td>
+      <td>1</td>
+      <td>1</td>
+      <td>1</td>
+      <td>1</td>
+      <td>1</td>
+    </tr>
+    <tr>
+      <th>window.navigator.platform</th>
+      <td>0</td>
+      <td>23</td>
+      <td>23</td>
+      <td>23</td>
+      <td>23</td>
+      <td>23</td>
+      <td>23</td>
+      <td>23</td>
+      <td>23</td>
+      <td>23</td>
+      <td>23</td>
+      <td>23</td>
+      <td>23</td>
+      <td>23</td>
+    </tr>
+    <tr>
+      <th>window.navigator.plugins[Shockwave Flash].description</th>
+      <td>0</td>
+      <td>39</td>
+      <td>39</td>
+      <td>39</td>
+      <td>39</td>
+      <td>39</td>
+      <td>39</td>
+      <td>39</td>
+      <td>39</td>
+      <td>39</td>
+      <td>39</td>
+      <td>39</td>
+      <td>39</td>
+      <td>39</td>
+    </tr>
+    <tr>
+      <th>window.navigator.plugins[Shockwave Flash].filename</th>
+      <td>0</td>
+      <td>7</td>
+      <td>7</td>
+      <td>7</td>
+      <td>7</td>
+      <td>7</td>
+      <td>7</td>
+      <td>7</td>
+      <td>7</td>
+      <td>7</td>
+      <td>7</td>
+      <td>7</td>
+      <td>7</td>
+      <td>7</td>
+    </tr>
+    <tr>
+      <th>window.navigator.plugins[Shockwave Flash].length</th>
+      <td>0</td>
+      <td>9</td>
+      <td>9</td>
+      <td>9</td>
+      <td>9</td>
+      <td>9</td>
+      <td>9</td>
+      <td>9</td>
+      <td>9</td>
+      <td>9</td>
+      <td>9</td>
+      <td>9</td>
+      <td>9</td>
+      <td>9</td>
+    </tr>
+    <tr>
+      <th>window.navigator.plugins[Shockwave Flash].name</th>
+      <td>0</td>
+      <td>10</td>
+      <td>10</td>
+      <td>10</td>
+      <td>10</td>
+      <td>10</td>
+      <td>10</td>
+      <td>10</td>
+      <td>10</td>
+      <td>10</td>
+      <td>10</td>
+      <td>10</td>
+      <td>10</td>
+      <td>10</td>
+    </tr>
+    <tr>
+      <th>window.navigator.plugins[Shockwave Flash].version</th>
+      <td>0</td>
+      <td>7</td>
+      <td>7</td>
+      <td>7</td>
+      <td>7</td>
+      <td>7</td>
+      <td>7</td>
+      <td>7</td>
+      <td>7</td>
+      <td>7</td>
+      <td>7</td>
+      <td>7</td>
+      <td>7</td>
+      <td>7</td>
+    </tr>
+    <tr>
+      <th>window.navigator.product</th>
+      <td>0</td>
+      <td>2</td>
+      <td>2</td>
+      <td>2</td>
+      <td>2</td>
+      <td>2</td>
+      <td>2</td>
+      <td>2</td>
+      <td>2</td>
+      <td>2</td>
+      <td>2</td>
+      <td>2</td>
+      <td>2</td>
+      <td>2</td>
+    </tr>
+    <tr>
+      <th>window.navigator.productSub</th>
+      <td>0</td>
+      <td>2</td>
+      <td>2</td>
+      <td>2</td>
+      <td>2</td>
+      <td>2</td>
+      <td>2</td>
+      <td>2</td>
+      <td>2</td>
+      <td>2</td>
+      <td>2</td>
+      <td>2</td>
+      <td>2</td>
+      <td>2</td>
+    </tr>
+    <tr>
+      <th>window.navigator.userAgent</th>
+      <td>0</td>
+      <td>258</td>
+      <td>258</td>
+      <td>258</td>
+      <td>258</td>
+      <td>258</td>
+      <td>258</td>
+      <td>258</td>
+      <td>258</td>
+      <td>258</td>
+      <td>258</td>
+      <td>258</td>
+      <td>258</td>
+      <td>258</td>
+    </tr>
+    <tr>
+      <th>window.navigator.vendor</th>
+      <td>0</td>
+      <td>7</td>
+      <td>7</td>
+      <td>7</td>
+      <td>7</td>
+      <td>7</td>
+      <td>7</td>
+      <td>7</td>
+      <td>7</td>
+      <td>7</td>
+      <td>7</td>
+      <td>7</td>
+      <td>7</td>
+      <td>7</td>
+    </tr>
+    <tr>
+      <th>window.navigator.vendorSub</th>
+      <td>0</td>
+      <td>1</td>
+      <td>1</td>
+      <td>1</td>
+      <td>1</td>
+      <td>1</td>
+      <td>1</td>
+      <td>1</td>
+      <td>1</td>
+      <td>1</td>
+      <td>1</td>
+      <td>1</td>
+      <td>1</td>
+      <td>1</td>
+    </tr>
+    <tr>
+      <th>window.screen.colorDepth</th>
+      <td>0</td>
+      <td>22</td>
+      <td>22</td>
+      <td>22</td>
+      <td>22</td>
+      <td>22</td>
+      <td>22</td>
+      <td>22</td>
+      <td>22</td>
+      <td>22</td>
+      <td>22</td>
+      <td>22</td>
+      <td>22</td>
+      <td>22</td>
+    </tr>
+    <tr>
+      <th>window.screen.pixelDepth</th>
+      <td>0</td>
+      <td>5</td>
+      <td>5</td>
+      <td>5</td>
+      <td>5</td>
+      <td>5</td>
+      <td>5</td>
+      <td>5</td>
+      <td>5</td>
+      <td>5</td>
+      <td>5</td>
+      <td>5</td>
+      <td>5</td>
+      <td>5</td>
+    </tr>
+    <tr>
+      <th>window.sessionStorage</th>
+      <td>0</td>
+      <td>65</td>
+      <td>65</td>
+      <td>65</td>
+      <td>65</td>
+      <td>65</td>
+      <td>65</td>
+      <td>65</td>
+      <td>65</td>
+      <td>65</td>
+      <td>65</td>
+      <td>65</td>
+      <td>65</td>
+      <td>65</td>
+    </tr>
+  </tbody>
+</table>
+</div>
+
+
+
+
+```python
+result.corr()
+```
+
+
+
+
+<div>
+<style scoped>
+    .dataframe tbody tr th:only-of-type {
+        vertical-align: middle;
+    }
+
+    .dataframe tbody tr th {
+        vertical-align: top;
+    }
+
+    .dataframe thead th {
+        text-align: right;
+    }
+</style>
+<table border="1" class="dataframe">
+  <thead>
+    <tr style="text-align: right;">
+      <th></th>
+      <th>crawl_id</th>
+      <th>file_number</th>
+      <th>in_iframe</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <th>crawl_id</th>
+      <td>NaN</td>
+      <td>NaN</td>
+      <td>NaN</td>
+    </tr>
+    <tr>
+      <th>file_number</th>
+      <td>NaN</td>
+      <td>1.000000</td>
+      <td>0.137485</td>
+    </tr>
+    <tr>
+      <th>in_iframe</th>
+      <td>NaN</td>
+      <td>0.137485</td>
+      <td>1.000000</td>
+    </tr>
+  </tbody>
+</table>
+</div>
+
+
