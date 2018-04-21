@@ -37,7 +37,7 @@ Sources:
 ### Results: Summary
 
 Less than 0.02% of script calls are detected with cryptojacking.  
-However, it is important to note that cryptojacking code can be executed in order ways than by including the host .js script in a script tag. It can be disguised, stealthily executed in iframes,  or directly used in a function of a first party script. Users may also face redirect loops that eventually lead to a page with a mining script. Another reason for the low detection rate could be that the prominence/popularity of the analysed sites from the web crawl is enough to dissuade site owners from implementing obvious cryptojacking script usage.  
+However, it is important to note that cryptojacking code can be executed in other ways than by including the host .js script in a script tag. It can be disguised, stealthily executed in iframes,  or directly used in a function of a first party script. Users may also face redirect loops that eventually lead to a page with a mining script. Another reason for the low detection rate could be that the prominence/popularity of the analysed sites from the web crawl is enough to dissuade site owners from implementing obvious cryptojacking script usage.  
 It is likely that the actual rate of cryptojacking is higher. 
 
 The majority of domains that were detected with cryptojacking are streaming sites. This is unsurprising as users will have streaming sites open for longer as they are watching shows/movies, and mining scripts can be executed longer. 
@@ -68,21 +68,48 @@ number of cryptojacking hosts used: 11
 
 ```
 import numpy as np
+## Compatibilty with Python 2.
+from __future__ import absolute_import
+from __future__ import division
+from __future__ import print_function
+from __future__ import unicode_literals
+
+from builtins import open
+from builtins import str
+from builtins import basestring
+
+from future import standard_library
+standard_library.install_aliases()
+```
+
+
+```
 BUCKET = 'safe-ucosp-2017/safe_dataset/v1'
-
-ACCESS_KEY = "MY_ACCESS_KEY"
-SECRET_KEY = "MY_SECRET_KEY"
-ENCODED_SECRET_KEY = SECRET_KEY.replace("/", "%2F")
-AWS_BUCKET_NAME = BUCKET
-
-S3_LOCATION = "s3a://{}:{}@{}".format(ACCESS_KEY, ENCODED_SECRET_KEY, AWS_BUCKET_NAME)
 MOUNT = "/mnt/{}".format(BUCKET.replace("/", "-"))
-
-mountPoints = lambda: np.array([m.mountPoint for m in dbutils.fs.mounts()])
-already_mounted = np.any(mountPoints() == MOUNT)
+mountPoints = [m.mountPoint for m in dbutils.fs.mounts()]
+already_mounted = MOUNT in mountPoints
 if not already_mounted:
-    dbutils.fs.mount(S3_LOCATION, MOUNT)
-display(dbutils.fs.ls(MOUNT))
+  dbutils.fs.mount("s3://" + BUCKET, MOUNT)
+```
+
+
+```
+#import numpy as np
+#BUCKET = 'safe-ucosp-2017/safe_dataset/v1'
+
+#ACCESS_KEY = "MY_ACCESS_KEY"
+#SECRET_KEY = "MY_SECRET_KEY"
+#ENCODED_SECRET_KEY = SECRET_KEY.replace("/", "%2F")
+#AWS_BUCKET_NAME = BUCKET
+
+#S3_LOCATION = "s3a://{}:{}@{}".format(ACCESS_KEY, ENCODED_SECRET_KEY, AWS_BUCKET_NAME)
+#MOUNT = "/mnt/{}".format(BUCKET.replace("/", "-"))
+
+#mountPoints = lambda: np.array([m.mountPoint for m in dbutils.fs.mounts()])
+#already_mounted = np.any(mountPoints() == MOUNT)
+#if not already_mounted:
+#    dbutils.fs.mount(S3_LOCATION, MOUNT)
+#display(dbutils.fs.ls(MOUNT))
 ```
 
 Note: Analysis was done on union of clean and invalid parquet files but no cryptojacking was detected in invalid files - can avoid reading invalid files to save computation time.
@@ -120,9 +147,9 @@ def get_cryptojacking_sites():
     skipped_suffixes = ["com", ""]
     
     for line in data: 
-        string = str(line)
-        if string.startswith("b'0.0.0.0"):
-            sites.append(string[len("b'0.0.0.0 "):-len("\\\\n")])
+        string = str(line).strip()
+        if string.startswith("0.0.0.0"):
+            sites.append(string[8:])
     print("Unmodified list: " + str(sites))
             
     for site in sites:
@@ -164,7 +191,7 @@ cryptoDF_count
 
 
 ```
-cryptoDF.show(500, False)
+cryptoDF.show(50, False)
 ```
 
 
@@ -181,13 +208,14 @@ domains = cryptoDF.select('location').rdd.distinct()
 domains_count = domains.count()
 domains_count
 
-#14523 (without prefixes/suffixes)
-#49 (with prefixes/suffixes)
+#14523 (with prefixes/suffixes)
+#49 (without prefixes/suffixes)
 ```
 
 
 ```
 #Which domains are the "worst" for crypto-jacking - i.e., all the domains where crypto-jacking was detecting, ordered by the number of crypto-jacking scripts observed on them.
+# However, since we have stripped prefixed and suffixes, this counts instances of crpyto-jacking scripts across all pages in the dataset sharing this domain.
 domain_with_counts = cryptoDF.groupby("location").count()
 ordered_domains_with_counts = domain_with_counts.orderBy("count", ascending=False).show(100)
 
