@@ -23,23 +23,25 @@ Because eval is generally considered a bad practice, we examine webpages that us
 
 We base the majority of the analysis on a single sample of 10,000 random webpages. We also take 10 smaller samples of 5,000 webpages that is used to look for sampling biases in the analysis.
 
-#### This notebook looks at 8 aspects of the "script_loc_eval" row in the crawl dataset:
-1. What % of webpages use eval atleast once.
-2. The number of unique scripts that use eval.
-3. Out of the scripts on webpages that use eval, how many scripts are 3rd party scripts.
-4. Summary statistics about the # of eval calls per webpage.
-5. For all the webpages that use eval at least once, How many times is eval used by these webpages and what % of total function calls are eval calls.
-6. A visualization of the distribution of the # of eval calls.
-7. A visualization of the distribution of the % of function calls for a webpage that are created using eval.
-8. A visualization of the relationship between the # of eval calls and the % of function calls that are created using eval.
+#### This notebook looks at 9 aspects of the "script_loc_eval" row in the crawl dataset:
+1. What % of total function calls are created using eval.
+2. What % of webpages use eval atleast once.
+3. The number of unique scripts that use eval.
+4. Out of the scripts on webpages that use eval, how many scripts are 3rd party scripts.
+5. Summary statistics about the # of eval calls per webpage.
+6. For all the webpages that use eval at least once, How many times is eval used by these webpages and what % of total function calls are eval calls.
+7. A visualization of the distribution of the # of eval calls.
+8. A visualization of the distribution of the % of function calls for a webpage that are created using eval.
+9. A visualization of the relationship between the # of eval calls and the % of function calls that are created using eval.
 
 #### Through this analysis we found that:
-1. ~9% of webpages use eval at least once. This observation is consistent between multiple samples as there is little variance.
-2. ~50% of scripts that use eval are unique and those scripts are part of a small number of domain entities.
-3. ~66% of scripts are hosted on 3rd party domains.
-4. Webpages tend to only have 1-3 function calls created using eval. However some webpages use eval significantly more often.
-5. Webpages tend to either have all of their function calls created using eval, or a few functions created using eval.
-6. There is no correlation between the # of eval calls and the % of function calls that are created using eval.
+1. ~3.3% of functions are created using eval.
+2. ~9% of webpages use eval at least once. This observation is consistent between multiple samples as there is little variance.
+3. ~3% of scripts that use eval are unique and those scripts are part of a small number of domain entities.
+4. ~33% of scripts are hosted on 3rd party domains.
+5. Webpages tend to only have 1-3 function calls created using eval. However some webpages use eval significantly more often.
+6. Webpages tend to either have all of their function calls created using eval, or a few functions created using eval.
+7. There is no correlation between the # of eval calls and the % of function calls that are created using eval.
 
 
 ```python
@@ -66,7 +68,7 @@ files_to_analyze = 10000
 data = load_data_util.load_random_data(files_to_analyze, False, 42, False)
 ```
 
-    Wall time: 26min 27s
+    Wall time: 52min
     
 
 #### Get 10 samples of 5000 webpages so we can analyze how our analysis differs between different samples.
@@ -86,7 +88,7 @@ samples = [
 
 ```
 
-    Wall time: 20min 10s
+    Wall time: 4h 14min 29s
     
 
 #### Define a helper function to get the top level domain from a url using the [disconnectme](https://github.com/disconnectme/disconnect-tracking-protection) entity list.
@@ -157,6 +159,8 @@ sample_results = [process_results(sample_data) for sample_data in samples]
 ```
 
 ## Analyze the collected data to get:
+* The number of function calls created using eval.
+* The total number of function calls.
 * The number of webpages with atleast 1 eval call.
 * The number of scripts that use eval and have a different domain name than the webpage calling that script.
 * The number of scripts that use eval and are not hosted on the same domain entity as the webpage calling that script.
@@ -177,6 +181,8 @@ class EvalAnalyzer:
         self.external_script_count = 0
         self.external_domain_entity_count = 0
         self.script_urls = []
+        self.eval_using_script_count = 0
+        self.total_function_calls = 0
         self.webpages_analyzed = len(result)
         self.eval_usage = pd.DataFrame(columns=['url', '# of eval calls', '% of eval calls'])
         
@@ -187,6 +193,7 @@ class EvalAnalyzer:
         result -- JSON object with processed S3 webpage data.
         """
         for key in result:
+            self.total_function_calls += result[key]['total_func_calls']
             if result[key]['count'] > 0:
                 self.webpages_with_eval_calls += 1
 
@@ -201,14 +208,15 @@ class EvalAnalyzer:
 
                 for script_url in result[key]["script_urls"]:
                     self.script_urls.append(script_url)
-
+                    self.eval_using_script_count += result[key]["script_urls"][script_url]
+                    
                     location_domain_entity = result[key]["domain entity"] if result[key]["domain entity"] != "" else key
                     script_domain_entity = get_top_level_domain_entity(script_url)
                     
                     if (location_domain_entity != script_domain_entity) and (not sample_data.find_url_match(key, script_url)):
-                        self.external_domain_entity_count += 1
+                        self.external_domain_entity_count += result[key]["script_urls"][script_url]
                     if not sample_data.find_url_match(key, script_url):
-                        self.external_script_count += 1
+                        self.external_script_count += result[key]["script_urls"][script_url]
 
         # set '# of eval calls' to be int type since it was being set to object type.
         # without this change later analysis and visualizations do not work.
@@ -225,16 +233,34 @@ analysis = EvalAnalyzer(result)
 sample_analyses = [EvalAnalyzer(sample) for sample in sample_results]
 ```
 
-    irregular script_url:  data:text/javascript,eval(mod_pagespeed_bdXcYBOsVm)%3B
     irregular script_url:  data:text/javascript,eval(mod_pagespeed_kd38%24NxVpB)%3B
     irregular script_url:  data:text/javascript,eval(mod_pagespeed_sgVXYq9OQ3)%3B
     irregular script_url:  data:text/javascript,eval(mod_pagespeed_qv6weZiEH4)%3B
+    irregular script_url:  data:text/javascript,eval(mod_pagespeed_bdXcYBOsVm)%3B
     irregular script_url:  data:text/javascript,eval(mod_pagespeed_6N23NffyO4)%3B
     
 
-## Examine the % of webpages that have 1 or more function created using eval.
+## Examine the % of function calls are created using eval.
 
 Before doing further analysis we want to see how prevalent eval is on the web.
+
+
+```python
+function_calls_created_with_eval_percentage = round(analysis.eval_using_script_count / analysis.total_function_calls * 100, 2)
+
+print(
+    str(function_calls_created_with_eval_percentage) + "% (" +
+    str(analysis.eval_using_script_count) + "/" + str(analysis.total_function_calls) +
+    ") of total function calls are created using eval."
+)
+```
+
+    3.31% (18657/563300) of total function calls are created using eval.
+    
+
+This shows that a small, but significant, portion of function calls are created using eval.
+
+## Examine the % of webpages that have 1 or more function created using eval.
 
 
 ```python
@@ -316,7 +342,7 @@ def get_number_of_script_urls(analysis):
     """Returns the number of script urls in the anaylsis.
     analysis -- EvalAnalysis object created by analyzing multiple webpages.
     """
-    return len(analysis.script_urls)
+    return analysis.eval_using_script_count
 
 def get_number_of_unique_script_urls(analysis):
     """Returns the number of unique script urls in the analysis.
@@ -374,7 +400,7 @@ percentage_of_unqiue_script_domain_entities = get_percentage(
 
 
 ```python
-print(str(number_of_script_urls) + " scripts contain a function call that is created using eval in this sample.")
+print(str(number_of_script_urls) + " function calls are created using eval in this sample.")
 
 print(
     str(percentage_of_unique_script_urls) + "% (" + 
@@ -396,13 +422,13 @@ print(
 
 ```
 
-    1000 scripts contain a function call that is created using eval in this sample.
-    55.1% (551/1000) of the scripts that use eval are unique.
+    18657 function calls are created using eval in this sample.
+    2.95% (551/18657) of the scripts that use eval are unique.
     41.74% (230/551) of those unqique scripts are part of a domain entity in the disconnectme entity list.
     10.43% (24/230) of those domain entities are unique.
     
 
-We observe that around half of scripts that use eval are unique.  This indicates that while eval usage is overly spread out between different script urls, it is also not clustered in a few scripts that host the majority of eval usage.
+We observe that only ~3% of scripts that use eval are unique.  This indicates that the same scripts are being used by a number of web pages, and those scripts use eval to create some of their functions. 
 
 Only ~40% of the unique script urls could be found in the disconnectme list.  This indicates that the majority of script urls that use eval are not hosted on common web tracker domains.
 
@@ -464,11 +490,11 @@ mean_percentage_of_unique_script_domain_entities = round(pd.Series([
 
 ```
 
+    irregular script_url:  data:text/javascript,eval(mod_pagespeed_sgVXYq9OQ3)%3B
     irregular script_url:  data:text/javascript,eval(mod_pagespeed_kd38%24NxVpB)%3B
+    irregular script_url:  data:text/javascript,eval(mod_pagespeed_bdXcYBOsVm)%3B
     irregular script_url:  data:text/javascript,eval(mod_pagespeed_6N23NffyO4)%3B
     irregular script_url:  data:text/javascript,eval(mod_pagespeed_qv6weZiEH4)%3B
-    irregular script_url:  data:text/javascript,eval(mod_pagespeed_bdXcYBOsVm)%3B
-    irregular script_url:  data:text/javascript,eval(mod_pagespeed_sgVXYq9OQ3)%3B
     
 
 
@@ -494,8 +520,8 @@ print(
 )
 ```
 
-    487.1 is the mean number of function calls created using eval in the samples.
-    62.97% (306.8/487.1) is the mean number of unique script urls in the sample.
+    10543.2 is the mean number of function calls created using eval in the samples.
+    3.01% (306.8/10543.2) is the mean number of unique script urls in the sample.
     38.92% (119.4/306.8) is the mean number of domain entities in the unique script urls for our samples.
     16.61% (19.8/119.4) is the mean number of unique domain entities.
     
@@ -508,7 +534,7 @@ Next we want to see if scripts that use eval are hosted externally. This can sho
 
 
 ```python
-total_script_urls = len(analysis.script_urls)
+total_script_urls = get_number_of_script_urls(analysis)
 percentage_of_external_scripts = round(analysis.external_script_count / total_script_urls * 100, 2)
 
 print(
@@ -527,11 +553,11 @@ print(
 )
 ```
 
-    67.7% (677/1000) of scripts that use eval are hosted on a different domain than the source webpage.
-    52.0% (520/1000) of scripts that use eval are part of a different domain entity than the webpage, or have a different domain name than the source webpage.
+    35.6% (6642/18657) of scripts that use eval are hosted on a different domain than the source webpage.
+    33.89% (6323/18657) of scripts that use eval are part of a different domain entity than the webpage, or have a different domain name than the source webpage.
     
 
-Around two thirds of scripts are hosted on a different domain than the webpage that calls the script and even when looking at domain entities only ~50% of scripts are hosted on the same domain entity, or domain, as the webpage.
+Around one thirds of scripts are hosted on a different domain than the webpage that calls the script. This holds true when looking at domain entities as well.
 
 ## Print summary statistics for # of eval calls
 
@@ -563,67 +589,67 @@ print(analysis.eval_usage.sort_values(by=['# of eval calls'], ascending=False))
 ```
 
                                                        url  # of eval calls  % of eval calls
-    653        https://www.rezultati.com/nogomet/portugal/             1213            90.66
-    857  https://www.flashscore.pl/pilka-nozna/honduras...             1074            91.95
-    672  https://www.canliskor3.com/futbol/avrupa/sampi...              994            92.47
-    452  https://www.flashscore.com/soccer/netherlands/...              876            86.48
-    820  https://www.mismarcadores.com/futbol/espana/la...              833            88.43
-    839         https://www.soccerstand.com/soccer/uganda/              600            84.63
-    515    http://www.marksandspencer.com/l/lingerie/socks              427            54.95
-    854  https://particuliers.lcl.fr/quotidien/gestion-...              412            74.91
-    292          https://www.myscore.com.ua/football/peru/              360            82.57
-    864           https://www.flashscore.com/soccer/world/              348            81.50
-    333    https://www.meusresultados.com/futebol/turquia/              340            83.33
-    568     https://www.flashscore.pl/pilka-nozna/boliwia/              340            83.33
-    376  https://www.westpac.com.au/about-westpac/200-y...              243            55.23
-    748              http://www.gameinformer.com/news.aspx              216            42.86
-    125                      https://review.rakuten.co.jp/              213            79.18
-    799            https://www.rd.com/advice/saving-money/              152            55.47
-    470   https://www.smbc-card.com/nyukai/card/ginren.jsp              142            68.27
-    193  http://www.thinkgeek.com/electronics-gadgets/m...              142            40.69
-    135        http://www.thinkgeek.com/interests/tolkien/              142            40.69
-    467              http://www.thinkgeek.com/accessories/              142            40.69
-    582  http://www.thinkgeek.com/accessories/jewelry/b...              142            40.69
-    578  https://newsroom.mastercard.com/asia-pacific/p...              137            94.48
-    357  https://webbroker.td.com/waw/idp/login.htm?exe...              132            53.88
-    634  http://www.japannetbank.co.jp/help/index.html?...              130            84.97
-    198                   https://www.newyorker.com/latest              119            10.60
-    649  https://www.snapdeal.com/products/home-furnish...              119            19.29
-    361  https://www.snapdeal.com/products/led-bulbs?so...              117            18.08
-    473  http://www.topshop.com/en/tsuk/category/bags-a...              116             6.33
-    780             https://ryohin-keikaku.jp/?area=footer              113            80.71
-    491  https://www.paypal-community.com/t5/user/viewp...              110            54.46
+    76         https://www.rezultati.com/nogomet/portugal/             1213            90.66
+    156  https://www.flashscore.pl/pilka-nozna/honduras...             1074            91.95
+    764  https://www.canliskor3.com/futbol/avrupa/sampi...              994            92.47
+    734  https://www.flashscore.com/soccer/netherlands/...              876            86.48
+    73   https://www.mismarcadores.com/futbol/espana/la...              833            88.43
+    163         https://www.soccerstand.com/soccer/uganda/              600            84.63
+    595    http://www.marksandspencer.com/l/lingerie/socks              427            54.95
+    106  https://particuliers.lcl.fr/quotidien/gestion-...              412            74.91
+    486          https://www.myscore.com.ua/football/peru/              360            82.57
+    121           https://www.flashscore.com/soccer/world/              348            81.50
+    501     https://www.flashscore.pl/pilka-nozna/boliwia/              340            83.33
+    415    https://www.meusresultados.com/futebol/turquia/              340            83.33
+    850  https://www.westpac.com.au/about-westpac/200-y...              243            55.23
+    849              http://www.gameinformer.com/news.aspx              216            42.86
+    327                      https://review.rakuten.co.jp/              213            79.18
+    536            https://www.rd.com/advice/saving-money/              152            55.47
+    447        http://www.thinkgeek.com/interests/tolkien/              142            40.69
+    97   http://www.thinkgeek.com/accessories/jewelry/b...              142            40.69
+    211  http://www.thinkgeek.com/electronics-gadgets/m...              142            40.69
+    24               http://www.thinkgeek.com/accessories/              142            40.69
+    719   https://www.smbc-card.com/nyukai/card/ginren.jsp              142            68.27
+    223  https://newsroom.mastercard.com/asia-pacific/p...              137            94.48
+    592  https://webbroker.td.com/waw/idp/login.htm?exe...              132            53.88
+    506  http://www.japannetbank.co.jp/help/index.html?...              130            84.97
+    659  https://www.snapdeal.com/products/home-furnish...              119            19.29
+    664                   https://www.newyorker.com/latest              119            10.60
+    332  https://www.snapdeal.com/products/led-bulbs?so...              117            18.08
+    110  http://www.topshop.com/en/tsuk/category/bags-a...              116             6.33
+    358             https://ryohin-keikaku.jp/?area=footer              113            80.71
+    750  https://www.paypal-community.com/t5/user/viewp...              110            54.46
     ..                                                 ...              ...              ...
-    401  https://www.google.com/afs/ads?q=Boots&adpage=...                1           100.00
-    405                   http://shen.familydoctor.com.cn/                1             0.50
-    441  https://googleads.g.doubleclick.net/pagead/ads...                1           100.00
-    477  http://rutrk.org/iframe/MG-2/MG-bottom.html?rn...                1             5.88
-    476                http://www.ali213.net/zt/immortalr/                1             5.56
-    465  http://www.dr.com.tr/Yazar/hasan-ali-toptas/s=...                1             0.05
+    389  http://craftapponline.com/restricted/?id=25970...                1            25.00
+    391  https://googleads.g.doubleclick.net/pagead/ads...                1           100.00
+    392  http://www.asos.com/women/a-to-z-of-brands/noi...                1             0.18
+    395  https://www.officeworks.com.au/shop/officework...                1             0.12
+    483  https://googleads.g.doubleclick.net/pagead/ads...                1           100.00
+    473  https://googleads.g.doubleclick.net/pagead/ads...                1           100.00
+    470  https://googleads.g.doubleclick.net/pagead/ads...                1           100.00
+    469                http://www.onlinedown.net/sort/201/                1             3.12
     464  https://googleads.g.doubleclick.net/pagead/ads...                1           100.00
     462  https://googleads.g.doubleclick.net/pagead/ads...                1           100.00
-    458  https://googleads.g.doubleclick.net/pagead/ads...                1           100.00
-    457  https://googleads.g.doubleclick.net/pagead/ads...                1           100.00
-    454  https://googleads.g.doubleclick.net/pagead/ads...                1           100.00
-    453                     http://product.11467.com/moju/                1             1.33
-    451  https://googleads.g.doubleclick.net/pagead/ads...                1           100.00
-    1                       http://www.yesky.com/20171111/                1             1.28
-    442  https://googleads.g.doubleclick.net/pagead/ads...                1             3.12
-    437  https://googleads.g.doubleclick.net/pagead/ren...                1           100.00
-    407  https://googleads.g.doubleclick.net/pagead/ads...                1           100.00
-    433  https://googleads.g.doubleclick.net/pagead/ads...                1           100.00
-    432  https://googleads.g.doubleclick.net/pagead/ads...                1           100.00
-    427  https://googleads.g.doubleclick.net/pagead/ads...                1           100.00
-    421  https://googleads.g.doubleclick.net/pagead/ads...                1           100.00
-    420  http://rutrk.org/iframe/MG-2/MG-bottom.html?rn...                1             5.88
-    418                http://www.onlinedown.net/sort/201/                1             3.12
-    417  https://googleads.g.doubleclick.net/pagead/ads...                1           100.00
+    459  https://googleads.g.doubleclick.net/pagead/ads...                1           100.00
+    457  https://www.evite.com/c/evite-guest-etiquette?...                1             1.37
+    444  https://www.crateandbarrel.com/customer-servic...                1            33.33
+    442  https://tpc.googlesyndication.com/sadbundle/$c...                1           100.00
+    440  https://list.tmall.com/search_product.htm?spm=...                1             0.88
+    439  https://googleads.g.doubleclick.net/pagead/ads...                1           100.00
+    438  https://googleads.g.doubleclick.net/pagead/ads...                1           100.00
+    437  https://retail-pi.usps.com/retailpi/actions/in...                1             0.99
+    434  https://googleads.g.doubleclick.net/pagead/ads...                1           100.00
+    431  http://sporza.be/cm/sporza/zaal/basketbal/1.30...                1             8.33
+    428  https://tpc.googlesyndication.com/sadbundle/$c...                1           100.00
+    425  https://googleads.g.doubleclick.net/pagead/ads...                1             3.12
+    422             http://www.9ku.com/zhuanji/taste72.htm                1           100.00
+    421                 https://www.focus.de/kultur/musik/                1             0.91
+    417  http://rutrk.org/iframe/MG-2/MG-bottom.html?rn...                1             5.88
     416  https://googleads.g.doubleclick.net/pagead/ads...                1           100.00
-    413                       http://klamath.backpage.com/                1             2.70
-    412  https://googleads.g.doubleclick.net/pagead/ads...                1           100.00
-    410  http://rutrk.org/iframe/MG-2/MG-bottom.html?rn...                1             5.88
-    409                     http://jiangyangsh.51sole.com/                1             5.56
-    889                  https://www.athome.co.jp/rent/03/                1             9.09
+    401  https://www.jomashop.com/handbags-accessories-...                1            12.50
+    397  https://www.bestbuy.ca/en-ca/category/ink-tone...                1            16.67
+    396  http://rutrk.org/iframe/MG-2/MG-bottom.html?rn...                1             5.88
+    445  https://googleads.g.doubleclick.net/pagead/ren...                1           100.00
     
     [890 rows x 3 columns]
     
@@ -645,7 +671,7 @@ plt.close()
 ```
 
 
-![png](output_46_0.png)
+![png](output_49_0.png)
 
 
 Since the number of eval calls are so spread out, we cannot see much from the above graph other than that the majority of webpages have a low number of eval calls.  Thus, to better visualize the data, we create a second histogram that looks at the frequency of webpages where the number of eval calls is 2 standard deviations above 0. Since a large number of webpages only have 1 eval call, we use a log scale so that all the data can be seen.
@@ -667,7 +693,7 @@ plt.close()
 ```
 
 
-![png](output_48_0.png)
+![png](output_51_0.png)
 
 
 Since the standard deviation is large we look at the first 1/4th of a standard deviation of eval calls to better visualize the histogram bins.
@@ -688,7 +714,7 @@ plt.close()
 ```
 
 
-![png](output_50_0.png)
+![png](output_53_0.png)
 
 
 We can now see that most webpages only make 1 or 2 eval calls.
@@ -709,7 +735,7 @@ plt.close()
 ```
 
 
-![png](output_53_0.png)
+![png](output_56_0.png)
 
 
 This shows that most webpages either have a few of their function calls created using eval, or all of the functions created using eval.
@@ -732,11 +758,11 @@ plt.close()
 ```
 
 
-    <matplotlib.figure.Figure at 0x2583c6a63c8>
+    <matplotlib.figure.Figure at 0x221c6bf3390>
 
 
 
-![png](output_56_1.png)
+![png](output_59_1.png)
 
 
 The above graph shows that there is a low correlation between the # of eval calls and % of total calls created using eval.
