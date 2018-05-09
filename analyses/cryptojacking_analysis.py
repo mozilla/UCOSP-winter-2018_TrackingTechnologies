@@ -54,7 +54,7 @@
 # COMMAND ----------
 
 # MAGIC %md ### Results: Statistics
-# MAGIC number of distinct calls by script_url and location: 6069494  
+# MAGIC number of distinct calls by script_url and location: 6069243  
 # MAGIC number of distinct calls that use cryptojacking script: 945  
 # MAGIC % of calls that use cryptojacking: 0.015%  
 # MAGIC 
@@ -73,19 +73,19 @@
 
 # COMMAND ----------
 
-import numpy as np
-## Compatibilty with Python 2.
+## Python 2/3 compatibility.
 from __future__ import absolute_import
 from __future__ import division
 from __future__ import print_function
 from __future__ import unicode_literals
-
-from builtins import open
-from builtins import str
-from builtins import basestring
-
 from future import standard_library
 standard_library.install_aliases()
+from six import text_type
+
+from pyspark import StorageLevel
+import numpy as np
+import urllib.request
+import tldextract 
 
 # COMMAND ----------
 
@@ -126,19 +126,28 @@ invalid_parquet_df = spark.read.parquet("{}/{}".format(MOUNT, 'invalid.parquet')
 
 # COMMAND ----------
 
-from pyspark import StorageLevel
-distinct_clean = clean_parquet_df[['location', 'script_url']].distinct() 
-distinct_invalid = invalid_parquet_df[['location', 'script_url']].distinct() 
-distinct_all = distinct_clean.union(distinct_invalid).persist(StorageLevel.MEMORY_AND_DISK)
-distinct_all.count()
-
-#6064923 distinct script calls from clean files.
-#6069494 distinct script calls from union of clean and invalid files.
+# MAGIC %md
+# MAGIC Restrict to the list of unique `(page URL, script URL)` pairs in the dataset.
+# MAGIC 
+# MAGIC We get 6,064,923 distinct script calls from the clean dataset alone, and 6,069,243 distinct script calls from union of clean and invalid files.
 
 # COMMAND ----------
 
-import urllib.request
-import tldextract 
+distinct_clean = clean_parquet_df[['location', 'script_url']]
+distinct_invalid = invalid_parquet_df[['location', 'script_url']]
+distinct_all = distinct_clean.union(distinct_invalid)\
+  .distinct()\
+  .persist(StorageLevel.MEMORY_AND_DISK)
+distinct_all.count()
+
+
+
+# COMMAND ----------
+
+# MAGIC %md
+# MAGIC Parse the external list of known cryptojacking hosts.
+
+# COMMAND ----------
 
 def get_cryptojacking_sites():
     data = urllib.request.urlopen("https://raw.githubusercontent.com/hoshsadiq/adblock-nocoin-list/master/hosts.txt")
@@ -150,26 +159,36 @@ def get_cryptojacking_sites():
     skipped_suffixes = ["com", ""]
     
     for line in data: 
-        string = str(line).strip()
-        if string.startswith("0.0.0.0"):
-            sites.append(string[8:])
-    print("Unmodified list: " + str(sites))
+        line = text_type(line).strip()
+        if line.startswith("0.0.0.0"):
+            sites.append(line[8:])
+    print("Unmodified list: " + text_type(sites))
             
     for site in sites:
       site_str = ""
-      if tldextract.extract(site).subdomain not in skipped_subdomains:
-        site_str = tldextract.extract(site).subdomain + "." + tldextract.extract(site).domain
+      site_extr = tldextract.extract(site)
+      if site_extr.subdomain not in skipped_subdomains:
+        site_str = site_extr.subdomain + "." + site_extr.domain
       else:
-        site_str = tldextract.extract(site).domain
+        site_str = site_extr.domain
         
-      if tldextract.extract(site).suffix not in skipped_suffixes:
-        site_str = site_str + "." + tldextract.extract(site).suffix
+      if site_extr.suffix not in skipped_suffixes:
+        site_str = site_str + "." + site_extr.suffix
       site_domains.append(site_str)
     return site_domains[:-10] # Hardcoding: remove last 10 sites in list; they are obfuscated.
 
 cryptojacking_sites = get_cryptojacking_sites()
-print("Modified list: " + str(cryptojacking_sites))
-print("Number of sites: " + str(len(cryptojacking_sites)))
+print("\nModified list: " + text_type(cryptojacking_sites))
+print("\nNumber of sites: " + text_type(len(cryptojacking_sites)))
+
+# COMMAND ----------
+
+# MAGIC %md
+# MAGIC Check for script URLs that belong to the cryptojacking list.
+# MAGIC 
+# MAGIC - Count is 945 (with suffixes/prefixes)
+# MAGIC - Count is 4,588 (when "wsp" subdomain is skipped - lots of calls to jsc.marketgid but none to wsp.marketgid (which is a known cryptojacking host))
+# MAGIC - Count is 368,902 when matching domain only (removed prefixes/suffixes) -> problem, "analytics" domain matches all Google Analytics uses.
 
 # COMMAND ----------
 
@@ -178,21 +197,23 @@ def detect_cryptojacking(row):
       if site in row.script_url:
         return site, row.script_url, tldextract.extract(row.location).domain 
 
-cryptoRDD = distinct_all.rdd.map(detect_cryptojacking).filter(lambda x: x is not None).persist(StorageLevel.MEMORY_AND_DISK)
+cryptoRDD = distinct_all.rdd.map(detect_cryptojacking)\
+  .filter(lambda x: x is not None)\
+  .persist(StorageLevel.MEMORY_AND_DISK)
 cols = ['cryptojacking_TLD', 'script_url', 'location']
-cryptoDF = cryptoRDD.toDF(cols)
+cryptoDF = spark.createDataFrame(cryptoRDD, cols)
 
 cryptoDF_count = cryptoDF.count()
 cryptoDF_count
 
-
-#Count is 945 (with suffixes/prefixes)
-#Count is 4588 (when "wsp" subdomain is skipped - lots of calls to jsc.marketgid but none to wsp.marketgid (which is a known cryptojacking host))
-#Count is 368902 when matching domain only (removed prefixes/suffixes) -> problem, "analytics" domain matches all Google Analytics uses.
-
 # COMMAND ----------
 
 cryptoDF.show(50, False)
+
+# COMMAND ----------
+
+# MAGIC %md
+# MAGIC How many distinct domains are there among the sites in the full dataset?
 
 # COMMAND ----------
 
@@ -202,31 +223,46 @@ distinct_domains_count
 
 # COMMAND ----------
 
-#How many domains have at least 1 detection of crypto-jacking?
+# MAGIC %md
+# MAGIC How many domains have at least 1 detection of crypto-jacking?
+# MAGIC 
+# MAGIC - 14,523 (with prefixes/suffixes)
+# MAGIC - 49 (without prefixes/suffixes)
+
+# COMMAND ----------
+
 domains = cryptoDF.select('location').rdd.distinct()
 domains_count = domains.count()
 domains_count
 
-#14523 (with prefixes/suffixes)
-#49 (without prefixes/suffixes)
+# COMMAND ----------
+
+# MAGIC %md
+# MAGIC Which domains are the "worst" for crypto-jacking? This counts all the domains where crypto-jacking was detecting, ordered by the number of crypto-jacking scripts observed on them. However, since we have stripped prefixed and suffixes, this counts instances of crpyto-jacking scripts across all pages in the dataset sharing this domain.
+# MAGIC 
+# MAGIC Note that many of these are streaming sites
 
 # COMMAND ----------
 
-#Which domains are the "worst" for crypto-jacking - i.e., all the domains where crypto-jacking was detecting, ordered by the number of crypto-jacking scripts observed on them.
-# However, since we have stripped prefixed and suffixes, this counts instances of crpyto-jacking scripts across all pages in the dataset sharing this domain.
 domain_with_counts = cryptoDF.groupby("location").count()
 ordered_domains_with_counts = domain_with_counts.orderBy("count", ascending=False).show(100)
 
-#Many are streaming sites
+# COMMAND ----------
+
+# MAGIC %md
+# MAGIC How many crypto-jacking TLDs are "active" - i.e., how many crypto-jacking TLDs were detected at least 1 time?
 
 # COMMAND ----------
 
-#How many crypto-jacking TLDs are "active" - i.e., how many crypto-jacking TLDs were detected at least 1 time?
 distinct_tlds = cryptoDF.select("cryptojacking_TLD").distinct().count()
 distinct_tlds
 
 # COMMAND ----------
 
-#Which crypto-jacking TLDs are the most used? 
+# MAGIC %md
+# MAGIC Which crypto-jacking TLDs are the most used?
+
+# COMMAND ----------
+
 tlds_with_count = cryptoDF.groupby("cryptojacking_TLD").count()
 ordered_tlds_with_count = tlds_with_count.orderBy("count", ascending=False).show(20)
