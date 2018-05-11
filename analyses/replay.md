@@ -105,7 +105,7 @@ Correlation between call symbols and wheter or not the call is a session replay 
 - script_https + location_http = 24,662
 - script_https + location_https = 47,716
 - script_http + location_http = 23,192
-- surprising there are no script_https + location_http
+- surprising there are no script_http + location_https
 - Among script URLs:
   + http: 23,192
   + https: 24,662 + 47,716 = 72378
