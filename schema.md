@@ -23,11 +23,8 @@
     * __Description:__ in_iframe is a boolean that indicates that the javascript code was run inside of an iframe. This is new functionality that was added ontop of the origional OpenWPM repository.
 * __location:__
     * __Type:__ string
-    * __Description:__ The url of the file that was being crawled to generate the json file. For iFrame resources, the location will be different that the parent url where the iFrame was encountered.
-    * __Example:__
-    ```
-	If Parent.html contains iFrame.html, iFrame.html is added inside an <iframe> tag. Inside iFrame.html a line of javascript such as: alert("window.location") is used to assert the location of the iFrame content. When openWPM queries content that is inside an iFrame on Parent.html the location of the content is reported as: iFrame.html not Parent.html.
-    ```
+    * __Description:__ The url of the file that was being crawled to generate the json file. For iFrame resources, the location will be different that the parent url where the iFrame was encountered. For example, if Parent.html contains iFrame.html, iFrame.html is added inside an <iframe> tag. Inside iFrame.html a line of javascript such as: alert("window.location") is used to assert the location of content. When openWPM queries content that is inside iFrame.html which is found on Parent.html the location of the content is reported as: iFrame.html not Parent.html.
+
 Due to the paralellization of the crawl, the iFrame content can not be associated with the parent site on which it was encountered, only the __in_iframe__ filed can indicate whether the content was executed inside an iFrame or not. All objects in a json file that were accessed from the crawled page outside of an iFrame should have the same location value. The url can be for any type of file such as .html, .js or have no file extension.
     * __Examples:__ 
     ```
