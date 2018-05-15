@@ -23,7 +23,7 @@
     * __Description:__ in_iframe is a boolean that indicates that the javascript code was run inside of an iframe. This is new functionality that was added ontop of the origional OpenWPM repository.
 * __location:__
     * __Type:__ string
-    * __Description:__ The url of the file that was being crawled to generate the json file. All objects in a json file should have the same location value. The url can be for any type of file such as .html, .js or have no file extension.
+    * __Description:__ The url of the file that was being crawled to generate the json file. For iFrame resourcesm the location will be different that the parent url where the iFrame was encountered. All objects in a json file that were accessed from the crawled page and outside of an iFrame should have the same location value. The url can be for any type of file such as .html, .js or have no file extension.
     * __Examples:__ 
     ```
     https://www.dresslily.com/bottom-c-36.html
