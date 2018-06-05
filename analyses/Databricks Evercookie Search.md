@@ -1,48 +1,57 @@
-### code to remount data if necessary
-This is the critical code for accessing
-data from S3.
 
-Mounting essentially creates a filesystem within the cluster
-located at `/dbfs/mnt/$BUCKET_NAME`. You can view the files via sh, or in python
-(See: "basic text file reitreval example" for python example and "Example of
-shell file retrieval" for a shell example)
 
-```python
+```
+## Python 2/3 compatibility.
+from __future__ import absolute_import
+from __future__ import division
+from __future__ import print_function
+from __future__ import unicode_literals
+from future import standard_library
+standard_library.install_aliases()
+from six import text_type
+
+import requests
+import json
+from os import listdir
+from os.path import isfile, join
+import time
+from urlparse import urlparse
+from pandas.io.json import json_normalize
+```
+
+Start by mounting the S3 bucket and loading the dataset.
+
+
+```
 # ACCESS_KEY = ""
 # SECRET_KEY = ""
 # ENCODED_SECRET_KEY = SECRET_KEY.replace("/", "%2F")
-BUCKET_NAME = "safe-ucosp-2017"
-MOUNT_NAME = "safe-browsing"
+#BUCKET_NAME = "safe-ucosp-2017"
+#MOUNT_NAME = "safe-browsing"
 
 # dbutils.fs.mount("s3a://%s:%s@%s" % (ACCESS_KEY, ENCODED_SECRET_KEY, BUCKET_NAME), "/mnt/%s" % MOUNT_NAME)
 # dbutils.fs.mounts()
-
 ```
 
-### basic text file retrieval example in Python
-myRDD.first() returns the first
-file in the rdd, which in this case is the only file
 
-```python
-filename = "1_1c1303ea628d99c741eef0ec90714853e72b7718022f1463903fb367.json"
+```
+BUCKET = 'safe-ucosp-2017/safe_dataset/v1'
+MOUNT = "/mnt/{}".format(BUCKET.replace("/", "-"))
+mountPoints = [m.mountPoint for m in dbutils.fs.mounts()]
+already_mounted = MOUNT in mountPoints
+if not already_mounted:
+  dbutils.fs.mount("s3://" + BUCKET, MOUNT)
+```
 
-file =  "/mnt/%s/%s" % (MOUNT_NAME, filename)
 
-myRDD = sc.textFile(file)
-myRDD.first()
-
+```
+clean_parquet_df = spark.read.parquet("{}/{}".format(MOUNT, 'clean.parquet'))
 ```
 
 ### Functions to load data
 
-```python
-import requests
-import os
-import json
 
-from os import listdir
-from os.path import isfile, join
-
+```
 project_root_directory = os.path.dirname("/")
 
 def load_index_file():
@@ -109,98 +118,60 @@ def p(s):
 
 ```
 
-### Load parquet file
-
-```python
-file =  "/mnt/%s/safe_dataset/v1/clean.parquet/*.snappy.parquet" % (MOUNT_NAME)
-
-clean_parquet_df = sqlContext.read.parquet(file)
-display(clean_parquet_df)
-```
-
 ### Load Index File
-Index file contains the names of all the files on S3. The
-index file hosted on Martins server. I have tried to load in all the files via
-the file system unsuccessfully. The index file is very large and is loaded over
-the internet so it takes a while to load.
-
-```python
-index = load_index_file()
-
-```
-
-### Examples of file retrieval via shell
-
-```python
-%sh
-cd /
-cd dbfs/mnt/safe-browsing/
-head 1_00001314358470f0c99914d5c7af0cd89248e54883ac3b5083395b61.json
+Index file contains the names of all the files on S3. The index file hosted on Martins server. I have tried to load in all the files via the file system unsuccessfully. The index file is very large and is loaded over the internet so it takes a while to load.
 
 
 ```
-
-```python
-%sh
-cd /
-
-cd dbfs/mnt/safe-browsing/safe_dataset/v1/clean.parquet
-ls
-# head -n5 'part-00000-dfb456b1-7820-4f5f-a380-3f8e7c566a60-c000.snappy.parquet'
-
+#index = load_index_file()
 ```
 
 ### Prep and Cache Data
 
-```python
 
-rdd_files = load_file_via_rdd(20000, index)
-rdd_files = prep_rdd(rdd_files)
+```
+
+#rdd_files = load_file_via_rdd(20000, index)
+#rdd_files = prep_rdd(rdd_files)
 
 
 
 ```
 
 ## Attempt to search for Evercookies
-Evercookie is a JavaScript-based
-application created by Samy Kamkar which produces zombie cookies in a web
-browser that are intentionally difficult to delete. The source code is found
-here: [Evercookie
-script](https://github.com/samyk/evercookie/blob/master/js/evercookie.js).
-Additional information can be found at the website https://samy.pl/evercookie/
-below is a list of candidate attributes that could be used a sign of an
-evercookie is being used. 
-A significant sign of an evercookie being used would
-be that the same value is being passed multiple times to these API calls.
+Evercookie is a JavaScript-based application created by Samy Kamkar which produces zombie cookies in a web browser that are intentionally difficult to delete. The source code is found here: [Evercookie script](https://github.com/samyk/evercookie/blob/master/js/evercookie.js). Additional information can be found at the website https://samy.pl/evercookie/
 
-```
-option_list = [
+below is a list of candidate attributes that could be used a sign of an evercookie is being used. 
+A significant sign of an evercookie being used would be that the same value is being passed multiple times to these API calls.
+
+```  
+  option_list = [
     "cookie", "name", "embedSWF",  # misc
-    "createElement",
-"getContext", # canvas
-    "localStorage", "sessionStorage", "globalStorage",
-"Storage" # storage
-    "indexedDB", "mozIndexedDB", "openDatabase",
-"IDBTransaction", "IDBKeyRange", # DB
+    "createElement", "getContext", # canvas
+    "localStorage", "sessionStorage", "globalStorage", "Storage" # storage
+    "indexedDB", "mozIndexedDB", "openDatabase", "IDBTransaction", "IDBKeyRange", # DB
   ]
 ```
 
 The below script is to get a sense of candidate api calls
 
-```python
 
-uniqueSymbols = rdd_files.map(lambda x : x['symbol']).distinct().collect()
-p(uniqueSymbols)
+```
+
+#uniqueSymbols = rdd_files.map(lambda x : x['symbol']).distinct().collect()
+#p(uniqueSymbols)
+```
+
+
+```
+uniqueSymbols = clean_parquet_df.groupBy("symbol").count()
+uniqueSymbols.orderBy(uniqueSymbols["count"].desc()).show(30, False)
 ```
 
 ### list of helper functions for investigation into evercookies
 
-```python
-import time
-import json
-from urlparse import urlparse
-from pandas.io.json import json_normalize
 
+```
 """ misc functions """
 def quick_print(rdd):
   """ collection and print rdd """
@@ -312,13 +283,11 @@ def has_overlap_arg(domain_data):
 ```
 
 ### Below was a preliminary attempt to search for Evercookies
-As a preliminary
-step I have generate an rdd of tuples containing the domains and the associated
-api calls with their arguments
-Then I filter out all the domains that don't make
-api calls to evercookie caching techniques.
+As a preliminary step I have generate an rdd of tuples containing the domains and the associated api calls with their arguments
+Then I filter out all the domains that don't make api calls to evercookie caching techniques.
 
-```python
+
+```
 out = rdd_files.map(get_cookie_info).groupByKey().mapValues(unique_list)
 out = out.filter(ev_cookie_candidate )
 
@@ -333,21 +302,18 @@ quick_print(out)
 ```
 
 ### Evercookie attempt 2
-extract json values passed to the api as possible
-duplicate values used by evercookies. Remove all domains that do no have
-overlaping values in the args passed to the api calls.
+extract json values passed to the api as possible duplicate values used by evercookies. Remove all domains that do no have overlaping values in the args passed to the api calls.
 
-The result is a lot of
-false positives. Difficult to find any good candidates for further examination.
-Ideas to narrow down include: searching for IDs (aphanumeric?), filter out
-obvious values like True, False.
+The result is a lot of false positives. Difficult to find any good candidates for further examination. Ideas to narrow down include: searching for IDs (aphanumeric?), filter out obvious values like True, False.
 
-```python
+
+```
 rdd_files = load_file_via_rdd("all", index)
 rdd_files = prep_rdd(rdd_files)
 ```
 
-```python
+
+```
 pout = rdd_files.filter(lambda x : x.get('arguments', '') != '')
 
 pout = pout.map(get_cookie_info_list_args).groupByKey().mapValues(unique_list)
@@ -369,12 +335,14 @@ quick_print(pout)
 
 ```
 
-```python
+
+```
 all_files = load_file_via_rdd("all", index)
 all_files = prep_rdd(all_files)
 ```
 
-```python
+
+```
 def isthing(data):
   return "evercookie.js" in data['script_url']
 
